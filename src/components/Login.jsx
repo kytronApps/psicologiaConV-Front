@@ -1,28 +1,23 @@
-import { useState, FormEvent } from 'react';
+import { useState } from 'react';
 import { Lock, Mail, ShieldAlert, Key, Clipboard, HeartHandshake } from 'lucide-react';
 
-interface LoginProps {
-  onLoginSuccess: (email: string, name: string) => void;
-}
-
-export default function Login(props: LoginProps) {
+export default function Login(props) {
   const [email, setEmail] = useState('psicologo.clinico@mentesana.cl');
   const [password, setPassword] = useState('password123');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e: FormEvent) => {
+  const handleSubmit = (e) => {
     e.preventDefault();
     setError('');
-    
+
     if (!email || !password) {
       setError('Por favor complete todos los datos requeridos');
       return;
     }
 
     setLoading(true);
-    
-    // Simulate minor delay for authentic auth look
+
     setTimeout(() => {
       setLoading(false);
       if (email.trim() === 'psicologo.clinico@mentesana.cl' && password === 'password123') {
@@ -166,7 +161,6 @@ export default function Login(props: LoginProps) {
         </div>
       </div>
 
-      {/* Security notice banner */}
       <div className="sm:mx-auto w-full max-w-md mt-6 px-4">
         <div className="bg-slate-100/60 p-4 rounded-xl border border-slate-200/50 flex gap-3 text-[11px] text-slate-500">
           <Key className="h-5 w-5 text-emerald-600 flex-shrink-0 mt-0.5" />

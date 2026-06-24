@@ -1,11 +1,6 @@
 import { Users, CalendarDays } from 'lucide-react';
 
-interface DashboardStatsProps {
-  totalPatients: number;
-  appointmentsToday: number;
-}
-
-export default function DashboardStats(props: DashboardStatsProps) {
+export default function DashboardStats(props) {
   const countPatients = props.totalPatients;
   const countAppointments = props.appointmentsToday;
 
@@ -35,4 +30,3 @@ export default function DashboardStats(props: DashboardStatsProps) {
     </div>
   );
 }
-
