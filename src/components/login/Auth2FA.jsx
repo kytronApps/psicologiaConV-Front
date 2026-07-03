@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import useAuth from "../context/useAuth";
+import useAuth from "../../context/useAuth";
 
 const Auth2FA = () => {
   const [searchParams] = useSearchParams();
@@ -23,7 +23,7 @@ const Auth2FA = () => {
     const loadQr = async () => {
       try {
         const response = await fetch(
-          `${import.meta.env.VITE_API_URL}/api/auth/setup-totp?token=${token}`
+          `${import.meta.env.VITE_API_URL}/api/auth/setup-totp?token=${token}`,
         );
 
         const data = await response.json();
@@ -60,7 +60,7 @@ const Auth2FA = () => {
             token,
             code: value,
           }),
-        }
+        },
       );
 
       const data = await response.json();
@@ -93,17 +93,11 @@ const Auth2FA = () => {
   return (
     <div className="flex flex-col items-center gap-6 mt-10">
       <h1 className="text-2xl font-bold">
-        {isSetup
-          ? "Configurar doble factor"
-          : "Verificación en dos pasos"}
+        {isSetup ? "Configurar doble factor" : "Verificación en dos pasos"}
       </h1>
 
       {isSetup && qrCode && (
-        <img
-          src={qrCode}
-          alt="Código QR"
-          className="w-64 h-64"
-        />
+        <img src={qrCode} alt="Código QR" className="w-64 h-64" />
       )}
 
       <p className="text-center text-gray-500 max-w-md">
