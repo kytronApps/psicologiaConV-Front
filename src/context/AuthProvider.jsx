@@ -4,7 +4,9 @@ import { AuthContext } from "./AuthContext";
 const AuthProvider = ({ children }) => {
   const [token, setToken] = useState(() => localStorage.getItem("token"));
   const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(
+    () => Boolean(localStorage.getItem("token")),
+  );
 
   const logout = useCallback(() => {
     localStorage.removeItem("token");
@@ -15,8 +17,6 @@ const AuthProvider = ({ children }) => {
 
   const validateSession = useCallback(async (jwt) => {
     if (!jwt) {
-      setUser(null);
-      setLoading(false);
       return false;
     }
 
@@ -59,8 +59,45 @@ const AuthProvider = ({ children }) => {
   };
 
   useEffect(() => {
-    validateSession(localStorage.getItem("token"));
-  }, [validateSession]);
+    const storedToken = localStorage.getItem("token");
+    if (!storedToken) {
+      return undefined;
+    }
+
+    let cancelled = false;
+
+    fetch(`${import.meta.env.VITE_API_URL}/api/auth/me`, {
+      headers: {
+        Authorization: `Bearer ${storedToken}`,
+      },
+    })
+      .then(async (response) => {
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.error || "No se pudo validar la sesión");
+        }
+
+        if (!cancelled) {
+          setUser(data.user);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          localStorage.removeItem("token");
+          setToken(null);
+          setUser(null);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   return (
     <AuthContext.Provider
