@@ -1,8 +1,6 @@
-import React from 'react';
-
 const Calendar = () => {
   return (
-    <div className='Calendar'>
+    <div className="Calendar">
       contenido
     </div>
   );
