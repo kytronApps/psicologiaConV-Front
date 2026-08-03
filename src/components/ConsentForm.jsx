@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useRef } from 'react';
 import { PenTool, CheckCircle, UserCheck, FileText } from 'lucide-react';
 
 export default function ConsentForm(props) {
@@ -8,8 +8,12 @@ export default function ConsentForm(props) {
   const defaultDateStr = today.toISOString().split('T')[0];
   const defaultYear = today.getFullYear();
 
-  const [selectedPatientId, setSelectedPatientId] = useState('');
-  const [patientName, setPatientName] = useState('');
+  const [selectedPatientId, setSelectedPatientId] = useState(
+    () => patients[0]?.id || 'manual',
+  );
+  const [patientName, setPatientName] = useState(
+    () => patients[0]?.name || '',
+  );
   const [consentDate, setConsentDate] = useState(defaultDateStr);
   const [consentYear, setConsentYear] = useState(defaultYear);
   const [signatureType, setSignatureType] = useState('draw');
@@ -20,15 +24,16 @@ export default function ConsentForm(props) {
   const canvasRef = useRef(null);
   const [isDrawing, setIsDrawing] = useState(false);
   const [hasDrawn, setHasDrawn] = useState(false);
-  const [signedList, setSignedList] = useState([]);
+  const [signedList, setSignedList] = useState(() => {
+    const stored = localStorage.getItem('psy_signed_consents');
+    if (!stored) return [];
 
-  useEffect(() => {
-    if (patients.length > 0 && !selectedPatientId) {
-      const firstPat = patients[0];
-      setSelectedPatientId(firstPat.id);
-      setPatientName(firstPat.name);
+    try {
+      return JSON.parse(stored);
+    } catch {
+      return [];
     }
-  }, [patients, selectedPatientId]);
+  });
 
   const handlePatientSelect = (patientId) => {
     setSelectedPatientId(patientId);
@@ -39,13 +44,6 @@ export default function ConsentForm(props) {
       if (found) setPatientName(found.name);
     }
   };
-
-  useEffect(() => {
-    const stored = localStorage.getItem('psy_signed_consents');
-    if (stored) {
-      try { setSignedList(JSON.parse(stored)); } catch (e) {}
-    }
-  }, []);
 
   const saveSignedConsents = (updated) => {
     setSignedList(updated);
