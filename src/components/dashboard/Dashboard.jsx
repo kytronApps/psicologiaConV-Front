@@ -1,22 +1,18 @@
-import DashboardHeader from "./DashboardHeader";
 import DashboardStats from "./DashboardStats";
-import useAuth from "../../context/useAuth";
-import SelectOptions from "./SelectOptions";
+import useClinicalData from "../../context/useClinicalData";
 
 const Dashboard = () => {
-  const { user } = useAuth();
+  const { patients, appointments } = useClinicalData();
+  const today = new Date().toISOString().slice(0, 10);
+  const appointmentsToday = appointments.filter(
+    (appointment) => appointment.date === today,
+  ).length;
 
   return (
     <div className="space-y-6">
-      <DashboardHeader
-        user={user}
-        appointmentsToday={0}
-      />
-      <SelectOptions />
-      
       <DashboardStats
-        totalPatients={0}
-        appointmentsToday={0}
+        totalPatients={patients.length}
+        appointmentsToday={appointmentsToday}
       />
     </div>
   );

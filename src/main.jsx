@@ -5,11 +5,14 @@ import "./index.css";
 import App from "./App.jsx";
 
 import AuthProvider from "./context/AuthProvider";
+import ClinicalDataProvider from "./context/ClinicalDataProvider";
 
 createRoot(document.getElementById("root")).render(
   <StrictMode>
     <AuthProvider>
-      <App />
+      <ClinicalDataProvider>
+        <App />
+      </ClinicalDataProvider>
     </AuthProvider>
   </StrictMode>
 );

@@ -7,6 +7,9 @@ import useAuth from "./context/useAuth";
 import Patients from "./components/selectOptions/Patiens";
 import Calendar from "./components/selectOptions/Calendar";
 import Consents from "./components/selectOptions/Consents";
+import AppLayout from "./components/layout/AppLayout";
+import BookingPage from "./components/booking/BookingPage";
+import ManageBookingPage from "./components/booking/ManageBookingPage";
 
 function ProtectedRoute({ children }) {
   const { user, loading } = useAuth();
@@ -26,42 +29,21 @@ export default function AppRoutes() {
         {/* Públicas */}
         <Route path="/" element={<Login />} />
         <Route path="/auth-2fa" element={<Auth2FA />} />
+        <Route path="/reservar/:psychologistId" element={<BookingPage />} />
+        <Route path="/cita/:token" element={<ManageBookingPage />} />
         {/* Protegidas */}
         <Route
-          path="/dashboard"
           element={
             <ProtectedRoute>
-              <Dashboard />
+              <AppLayout />
             </ProtectedRoute>
           }
-        />
-
-        <Route
-          path="/patients"
-          element={
-            <ProtectedRoute>
-              <Patients />
-            </ProtectedRoute>
-          }
-        />
-
-        <Route
-          path="/calendar"
-          element={
-            <ProtectedRoute>
-              <Calendar />
-            </ProtectedRoute>
-          }
-        />
-
-        <Route
-          path="/consents"
-          element={
-            <ProtectedRoute>
-              <Consents />
-            </ProtectedRoute>
-          }
-        />
+        >
+          <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/patients" element={<Patients />} />
+          <Route path="/calendar" element={<Calendar />} />
+          <Route path="/consents" element={<Consents />} />
+        </Route>
       </Routes>
     </BrowserRouter>
   );

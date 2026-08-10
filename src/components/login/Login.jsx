@@ -1,6 +1,16 @@
 import { HeartHandshake, Key } from "lucide-react";
+import { useSearchParams } from "react-router-dom";
 
 const Login = () => {
+  const [searchParams] = useSearchParams();
+  const loginError = searchParams.get("error");
+
+  const errorMessages = {
+    unauthorized: "Esta cuenta no está autorizada para acceder.",
+    oauth_failed: "No se pudo completar el acceso con Google.",
+    server_error: "Se produjo un error. Inténtalo de nuevo.",
+  };
+
   const handleGoogleLogin = () => {
     window.location.href = `${import.meta.env.VITE_API_URL}/api/auth/google`;
   };
@@ -30,6 +40,15 @@ const Login = () => {
       {/* Tarjeta */}
       <div className="mt-8 sm:mx-auto w-full max-w-md">
         <div className="bg-white py-8 px-4 shadow-xl border border-slate-100 rounded-2xl sm:px-10">
+          {errorMessages[loginError] && (
+            <div
+              role="alert"
+              className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+            >
+              {errorMessages[loginError]}
+            </div>
+          )}
+
           {/* botón de Google */}
           <button
             type="button"

@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { TYPE_LABELS } from '../utils';
 import {
   CalendarDays, Clock, Plus, Trash2, CheckCircle, AlertCircle, XCircle,
-  Sparkles, Calendar, RefreshCw
+  Sparkles, Calendar, RefreshCw, Video, Share2
 } from 'lucide-react';
+import { getAvailableSlots } from '../utils/bookingSlots';
 
 export default function AppointmentScheduler(props) {
   const appointmentList = props.appointments;
@@ -11,10 +12,9 @@ export default function AppointmentScheduler(props) {
 
   const [showAddForm, setShowAddForm] = useState(false);
   const [appointPatientId, setAppointPatientId] = useState(patientsList[0]?.id || '');
-  const [appointDate, setAppointDate] = useState('2026-06-22');
-  const [appointTime, setAppointTime] = useState('11:00');
+  const [appointDate, setAppointDate] = useState(new Date().toISOString().slice(0, 10));
+  const [appointTime, setAppointTime] = useState('');
   const [appointDuration, setAppointDuration] = useState(50);
-  const [appointType, setAppointType] = useState('cognitive_therapy');
   const [appointNotes, setAppointNotes] = useState('');
   const [appointFilter, setAppointFilter] = useState('all');
   const [statusMsg, setStatusMsg] = useState('');
@@ -22,11 +22,24 @@ export default function AppointmentScheduler(props) {
   const [gCalSyncTime, setGCalSyncTime] = useState('Hoy, hace unos minutos');
   const [autoUploadToGCal, setAutoUploadToGCal] = useState(true);
   const [googleStatusMsg, setGoogleStatusMsg] = useState(null);
+  const availableTimes = useMemo(
+    () => getAvailableSlots({
+      date: appointDate,
+      availability: props.availability,
+      appointments: appointmentList,
+      duration: appointDuration,
+    }),
+    [appointDate, appointDuration, appointmentList, props.availability],
+  );
 
   const handleCreateAppointment = (e) => {
     e.preventDefault();
     if (!appointPatientId) {
       setStatusMsg('⚠️ Selecciona un paciente registrado en la clínica');
+      return;
+    }
+    if (!appointTime || !availableTimes.includes(appointTime)) {
+      setStatusMsg('⚠️ Selecciona uno de los horarios disponibles.');
       return;
     }
 
@@ -40,9 +53,11 @@ export default function AppointmentScheduler(props) {
       date: appointDate,
       time: appointTime,
       duration: Number(appointDuration) || 50,
-      type: appointType,
-      status: 'confirmed',
-      notes: appointNotes || 'Sesión programada.'
+      type: 'session',
+      status: 'pending',
+      notes: appointNotes || 'Sesión programada.',
+      meetingPlatform: 'google_meet',
+      meetingUrl: '',
     };
 
     props.onAddAppointment(newAppointment);
@@ -70,9 +85,29 @@ export default function AppointmentScheduler(props) {
     }, 1200);
   };
 
+  const shareManagementLink = async (appointment) => {
+    try {
+      const path = await props.onGetSharePath(appointment.id);
+      const url = new URL(path, window.location.origin).toString();
+      if (navigator.share) {
+        await navigator.share({
+          title: "Gestiona tu cita",
+          text: `Gestiona tu cita del ${appointment.date} a las ${appointment.time}`,
+          url,
+        });
+      } else {
+        await navigator.clipboard.writeText(url);
+        setStatusMsg("¡Enlace de gestión copiado!");
+      }
+    } catch (error) {
+      if (error?.name !== "AbortError") setStatusMsg("No se pudo compartir el enlace.");
+    }
+  };
+
   const filteredAppointments = appointmentList
     .filter((app) => {
-      if (appointFilter === 'all') return true;
+      if (appointFilter === 'all') return app.status !== 'completed';
+      if (appointFilter === 'archived') return app.status === 'completed';
       return app.status === appointFilter;
     })
     .sort((a, b) => {
@@ -99,10 +134,10 @@ export default function AppointmentScheduler(props) {
 
           <div className="grid grid-cols-2 gap-2 text-center">
             {[
-              { filter: 'all', label: 'Todas', count: totalCount, activeClass: 'bg-indigo-50/50 border-indigo-200 text-indigo-800 font-bold' },
+              { filter: 'all', label: 'Activas', count: totalCount - completedCount, activeClass: 'bg-indigo-50/50 border-indigo-200 text-indigo-800 font-bold' },
               { filter: 'confirmed', label: 'Confirmadas', count: confirmedCount, activeClass: 'bg-emerald-50/50 border-emerald-200 text-emerald-800 font-bold' },
               { filter: 'pending', label: 'Pendientes', count: pendingCount, activeClass: 'bg-amber-50/50 border-amber-200 text-amber-800 font-bold' },
-              { filter: 'completed', label: 'Terminadas', count: completedCount, activeClass: 'bg-indigo-50/50 border-indigo-200 text-indigo-800 font-bold' },
+              { filter: 'archived', label: 'Archivadas', count: completedCount, activeClass: 'bg-slate-100 border-slate-300 text-slate-700 font-bold' },
             ].map(({ filter, label, count, activeClass }) => (
               <div
                 key={filter}
@@ -192,7 +227,7 @@ export default function AppointmentScheduler(props) {
             </h3>
 
             <form onSubmit={handleCreateAppointment} className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4">
                 <div>
                   <label htmlFor="appoint_patient_select" className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest">Paciente de Consulta</label>
                   <select
@@ -209,21 +244,10 @@ export default function AppointmentScheduler(props) {
                   </select>
                 </div>
 
-                <div>
-                  <label htmlFor="appoint_type_select" className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest">Enfoque de Sesión</label>
-                  <select
-                    id="appoint_type_select"
-                    value={appointType}
-                    onChange={(e) => setAppointType(e.target.value)}
-                    className="w-full mt-1 px-3 py-2 text-xs border border-slate-200 rounded-xl bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500 text-slate-700"
-                  >
-                    <option value="cognitive_therapy">Terapia Cognitivo-Conductual</option>
-                    <option value="family_therapy">Terapia Familiar o Pareja</option>
-                    <option value="psychoanalysis">Análisis Terapéutico</option>
-                    <option value="first_session">Primera Consulta / Evaluación</option>
-                    <option value="follow_up">Sesión de Seguimiento o Control</option>
-                  </select>
-                </div>
+              </div>
+
+              <div className="rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-xs text-blue-800">
+                <strong>Google Meet:</strong> al conectar Calendar, el enlace se creará automáticamente y se enviará al paciente. No tendrás que pegarlo manualmente.
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -234,7 +258,7 @@ export default function AppointmentScheduler(props) {
                     type="date"
                     required
                     value={appointDate}
-                    onChange={(e) => setAppointDate(e.target.value)}
+                    onChange={(e) => { setAppointDate(e.target.value); setAppointTime(''); }}
                     className="w-full mt-1 px-3 py-2 text-xs border border-slate-200 rounded-xl bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500 text-slate-700"
                   />
                 </div>
@@ -247,12 +271,10 @@ export default function AppointmentScheduler(props) {
                     onChange={(e) => setAppointTime(e.target.value)}
                     className="w-full mt-1 px-3 py-2 text-xs border border-slate-200 rounded-xl bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500 text-slate-700"
                   >
-                    <option value="09:00">09:00 AM</option>
-                    <option value="10:00">10:00 AM</option>
-                    <option value="11:30">11:30 AM</option>
-                    <option value="14:30">02:30 PM</option>
-                    <option value="16:00">04:00 PM</option>
-                    <option value="18:30">06:30 PM</option>
+                    <option value="">Selecciona un hueco...</option>
+                    {availableTimes.map((time) => (
+                      <option key={time} value={time}>{time}</option>
+                    ))}
                   </select>
                 </div>
 
@@ -300,7 +322,7 @@ export default function AppointmentScheduler(props) {
         <div id="appointments_board" className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
           <div className="flex items-center justify-between mb-4 pb-2 border-b border-slate-100">
             <div>
-              <h3 className="text-sm font-bold text-slate-800">Próximas Sesiones</h3>
+              <h3 className="text-sm font-bold text-slate-800">{appointFilter === 'archived' ? 'Historial de sesiones' : 'Próximas sesiones'}</h3>
               <p className="text-[11px] text-slate-400">Filtrado por el estado seleccionado a la izquierda</p>
             </div>
             <span className="text-[11px] font-semibold text-slate-400 bg-slate-50 px-2.5 py-1 rounded-xl border flex items-center gap-1">
@@ -365,10 +387,38 @@ export default function AppointmentScheduler(props) {
                           <span>📅 {readableDate} ({app.duration} min)</span>
                           <span className="italic text-slate-500">Objetivo: {app.notes}</span>
                         </p>
+                        <div className="mt-2 flex items-center gap-2 text-[10px] font-semibold text-slate-500">
+                          <Video className="h-3 w-3 text-indigo-500" />
+                          <span>
+                            {app.meetingPlatform === 'zoom'
+                              ? 'Zoom'
+                              : app.meetingPlatform === 'in_person'
+                                ? 'Presencial'
+                                : 'Google Meet'}
+                          </span>
+                          {app.meetingUrl && (
+                            <a
+                              href={app.meetingUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-indigo-600 underline"
+                            >
+                              Abrir videollamada
+                            </a>
+                          )}
+                          {!app.meetingUrl && app.status === 'confirmed' && (
+                            <a href="https://meet.google.com/new" target="_blank" rel="noreferrer" className="text-indigo-600 underline">
+                              Crear reunión en Meet
+                            </a>
+                          )}
+                        </div>
                       </div>
                     </div>
 
                     <div className="flex items-center gap-1.5 self-end md:self-center">
+                      <button type="button" onClick={() => shareManagementLink(app)} className="flex items-center gap-1 px-2 py-1 text-[10px] font-semibold uppercase text-indigo-600 hover:bg-indigo-50 rounded-lg">
+                        <Share2 className="h-3 w-3" /> Compartir
+                      </button>
                       {app.status !== 'confirmed' && app.status !== 'completed' && (
                         <button onClick={() => props.onUpdateAppointmentStatus(app.id, 'confirmed')} className="px-2 py-1 text-[10px] font-semibold uppercase bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 rounded-lg cursor-pointer">
                           Confirmar
@@ -376,7 +426,7 @@ export default function AppointmentScheduler(props) {
                       )}
                       {app.status === 'confirmed' && (
                         <button onClick={() => props.onUpdateAppointmentStatus(app.id, 'completed')} className="px-2 py-1 text-[10px] font-semibold uppercase bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200 rounded-lg cursor-pointer">
-                          Terminar
+                          Terminar y archivar
                         </button>
                       )}
                       {app.status !== 'cancelled' && (

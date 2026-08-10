@@ -1,7 +1,12 @@
 import { NavLink } from "react-router-dom";
-import { Archive, CalendarDays, PenTool } from "lucide-react";
+import { Archive, CalendarDays, LayoutDashboard, PenTool } from "lucide-react";
 
 const menuItems = [
+  {
+    label: "Resumen",
+    icon: LayoutDashboard,
+    path: "/dashboard",
+  },
   {
     label: "Pacientes y Expedientes",
     icon: Archive,
@@ -21,7 +26,7 @@ const menuItems = [
 
 const SelectOptions = () => {
   return (
-    <nav className="flex items-center gap-8 border-b border-slate-200">
+    <nav className="flex items-center gap-2 overflow-x-auto border-b border-slate-200 sm:gap-6">
       {menuItems.map((item) => {
         const Icon = item.icon;
 

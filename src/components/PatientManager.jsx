@@ -1,24 +1,10 @@
 import { useState } from 'react';
 import {
   Folder, FolderOpen, Search, FileText,
-  Lock, Filter, Eye, EyeOff, Plus, FileUp
+  Lock, Filter, Eye, EyeOff, Plus, FileUp, Pencil, Trash2, Save
 } from 'lucide-react';
 import { CATEGORY_LABELS } from '../utils';
-
-function getPatientFolderCode(patient) {
-  if (!patient || !patient.name) return 'PAT-XXXX';
-  const parts = patient.name.trim().split(/\s+/).filter(Boolean);
-  const initials = parts.map(word => word[0].toUpperCase()).join('');
-  const year = patient.birthDate ? patient.birthDate.split('-')[0] : '1990';
-  return `${initials}${year}`;
-}
-
-function getPatientPassword(patient) {
-  if (!patient || !patient.name) return 'paciente123';
-  const firstName = patient.name.trim().split(/\s+/)[0].toLowerCase();
-  const normalized = firstName.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-  return `${normalized}123`;
-}
+import { getPatientFolderCode, getPatientPassword } from './patientUtils';
 
 export default function PatientManager(props) {
   const patientList = props.patients;
@@ -40,11 +26,14 @@ export default function PatientManager(props) {
   const [newPatientOccupation, setNewPatientOccupation] = useState('');
   const [newPatientNotes, setNewPatientNotes] = useState('');
   const [uploadFileName, setUploadFileName] = useState('');
+  const [uploadFile, setUploadFile] = useState(null);
   const [uploadCategory, setUploadCategory] = useState('session_note');
-  const [uploadYear, setUploadYear] = useState(2026);
   const [uploadNote, setUploadNote] = useState('');
   const [statusMsg, setStatusMsg] = useState('');
   const [showUploadForm, setShowUploadForm] = useState(false);
+  const [editingFileId, setEditingFileId] = useState(null);
+  const [editFileName, setEditFileName] = useState('');
+  const [editFileContent, setEditFileContent] = useState('');
 
   const filteredPatients = patientList.filter((pat) => {
     const code = getPatientFolderCode(pat).toLowerCase();
@@ -58,6 +47,28 @@ export default function PatientManager(props) {
 
   const toggleFileContent = (fileId) => {
     setExpandedFileIds(prev => ({ ...prev, [fileId]: !prev[fileId] }));
+  };
+
+  const startEditingFile = (file) => {
+    setEditingFileId(file.id);
+    setEditFileName(file.name);
+    setEditFileContent(file.content || '');
+    setExpandedFileIds((current) => ({ ...current, [file.id]: true }));
+  };
+
+  const saveFileChanges = (fileId) => {
+    props.onUpdateFile(selectedPatientId, fileId, {
+      name: editFileName.trim(),
+      content: editFileContent.trim(),
+      updatedAt: new Date().toISOString(),
+    });
+    setEditingFileId(null);
+  };
+
+  const removeFile = (file) => {
+    if (!window.confirm(`¿Eliminar ${file.name} del expediente?`)) return;
+    props.onDeleteFile(selectedPatientId, file.id);
+    if (file.previewUrl) URL.revokeObjectURL(file.previewUrl);
   };
 
   const handleCreatePatientSubmit = (e) => {
@@ -112,23 +123,32 @@ export default function PatientManager(props) {
 
   const handleUploadSubmit = (e) => {
     e.preventDefault();
-    if (!uploadFileName.trim()) { setStatusMsg('⚠️ Por favor ingresa un archivo'); return; }
-    if (!uploadNote.trim()) { setStatusMsg('📝 Por favor escribe las anotaciones clínicas.'); return; }
+    const isSessionNote = uploadCategory === 'session_note';
+    if (!uploadFileName.trim()) {
+      setStatusMsg(isSessionNote ? '⚠️ Escribe un título para la nota.' : '⚠️ Selecciona un documento.');
+      return;
+    }
+    if (isSessionNote && !uploadNote.trim()) {
+      setStatusMsg('📝 Escribe el contenido de la nota de sesión.');
+      return;
+    }
 
     const newFile = {
       id: `file-${Date.now()}`,
-      name: uploadFileName.endsWith('.docx') || uploadFileName.endsWith('.pdf') || uploadFileName.endsWith('.txt')
-        ? uploadFileName
-        : `${uploadFileName}.docx`,
+      name: isSessionNote && !uploadFileName.includes('.')
+        ? `${uploadFileName}.txt`
+        : uploadFileName,
       size: `${Math.floor(Math.random() * 800) + 120} KB`,
       category: uploadCategory,
       uploadDate: new Date().toISOString().split('T')[0],
-      year: Number(uploadYear),
-      content: uploadNote
+      year: new Date().getFullYear(),
+      content: uploadNote || 'Documento adjunto al expediente clínico.',
+      previewUrl: uploadFile ? URL.createObjectURL(uploadFile) : null,
     };
 
     props.onAddFile(selectedPatientId, newFile);
     setUploadFileName('');
+    setUploadFile(null);
     setUploadNote('');
     setStatusMsg('🎉 ¡Archivo cargado y encriptado en el expediente!');
     setTimeout(() => setStatusMsg(''), 4000);
@@ -306,7 +326,12 @@ export default function PatientManager(props) {
                     <span className="text-[11px] text-slate-400 flex items-center gap-1 font-semibold">
                       <Filter className="h-3 w-3" /> Filtrar por Año:
                     </span>
-                    {['all', '2026', '2025', '2024'].map((y) => (
+                    {[
+                      'all',
+                      String(new Date().getFullYear()),
+                      String(new Date().getFullYear() - 1),
+                      String(new Date().getFullYear() - 2),
+                    ].map((y) => (
                       <button key={y} onClick={() => setYearFilter(y)} className={`px-2 py-0.5 text-xs font-bold rounded ${yearFilter === y ? 'bg-slate-800 text-white' : 'bg-slate-100 hover:bg-slate-200 text-slate-600'}`}>
                         {y === 'all' ? 'Todos' : y}
                       </button>
@@ -337,12 +362,35 @@ export default function PatientManager(props) {
                                 <p className="text-[10px] text-slate-400 mt-0.5">Tamaño: {file.size} • Registrado el {file.uploadDate}</p>
                               </div>
                             </div>
-                            <button className="text-xs font-bold text-slate-600 hover:text-slate-800 bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-lg flex items-center gap-1 transition-all">
-                              {isExpanded ? <><EyeOff className="h-3 w-3" /> Ocultar nota</> : <><Eye className="h-3 w-3" /> Ver contenido</>}
-                            </button>
+                            <div className="flex items-center gap-1.5">
+                              <button type="button" onClick={(event) => { event.stopPropagation(); startEditingFile(file); }} className="rounded-lg bg-indigo-50 p-2 text-indigo-700" title="Editar">
+                                <Pencil className="h-3.5 w-3.5" />
+                              </button>
+                              <button type="button" onClick={(event) => { event.stopPropagation(); removeFile(file); }} className="rounded-lg bg-rose-50 p-2 text-rose-700" title="Eliminar">
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
+                              <button className="text-xs font-bold text-slate-600 hover:text-slate-800 bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-lg flex items-center gap-1 transition-all">
+                                {isExpanded ? <><EyeOff className="h-3 w-3" /> Ocultar</> : <><Eye className="h-3 w-3" /> Ver</>}
+                              </button>
+                            </div>
                           </div>
                           {isExpanded && (
                             <div className="px-4 pb-4 pt-1 bg-slate-50/50 border-t border-slate-100 font-sans text-xs text-slate-700 leading-relaxed">
+                              {editingFileId === file.id ? (
+                                <div className="mb-3 space-y-2 rounded-xl border border-indigo-100 bg-white p-3">
+                                  <input value={editFileName} onChange={(event) => setEditFileName(event.target.value)} className="w-full rounded-lg border border-slate-200 px-3 py-2 font-bold" />
+                                  <textarea rows={4} value={editFileContent} onChange={(event) => setEditFileContent(event.target.value)} className="w-full rounded-lg border border-slate-200 px-3 py-2" />
+                                  <div className="flex justify-end gap-2">
+                                    <button type="button" onClick={() => setEditingFileId(null)} className="rounded-lg px-3 py-2 font-bold text-slate-500">Cancelar</button>
+                                    <button type="button" onClick={() => saveFileChanges(file.id)} className="flex items-center gap-1 rounded-lg bg-indigo-600 px-3 py-2 font-bold text-white"><Save className="h-3.5 w-3.5" /> Guardar</button>
+                                  </div>
+                                </div>
+                              ) : null}
+                              {file.previewUrl && (
+                                <a href={file.previewUrl} target="_blank" rel="noreferrer" className="mb-3 inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-2 font-bold text-white">
+                                  <Eye className="h-3.5 w-3.5" /> Abrir archivo subido
+                                </a>
+                              )}
                               <div className="bg-white p-3 rounded-xl border border-slate-200/80 shadow-inner whitespace-pre-wrap font-sans">{file.content}</div>
                             </div>
                           )}
@@ -370,10 +418,16 @@ export default function PatientManager(props) {
 
                 {showUploadForm && (
                   <form onSubmit={handleUploadSubmit} className="space-y-3 pt-2 border-t border-slate-100">
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                       <div>
-                        <label htmlFor="file_name_input" className="block text-[10px] font-bold text-slate-400 uppercase">Título / Nombre</label>
-                        <input id="file_name_input" type="text" required placeholder="Ej: notas_sesion_12.docx" value={uploadFileName} onChange={(e) => setUploadFileName(e.target.value)} className="w-full mt-1 px-3 py-1.5 text-xs border border-slate-200 rounded-lg text-slate-700 focus:outline-none focus:ring-1 focus:ring-emerald-500 bg-slate-50/50" />
+                        <label htmlFor="file_name_input" className="block text-[10px] font-bold text-slate-400 uppercase">
+                          {uploadCategory === 'session_note' ? 'Título de la nota' : 'Seleccionar documento'}
+                        </label>
+                        {uploadCategory === 'session_note' ? (
+                          <input id="file_name_input" type="text" required placeholder="Ej: Evolución sesión 12" value={uploadFileName} onChange={(e) => setUploadFileName(e.target.value)} className="w-full mt-1 px-3 py-1.5 text-xs border border-slate-200 rounded-lg text-slate-700 focus:outline-none focus:ring-1 focus:ring-emerald-500 bg-slate-50/50" />
+                        ) : (
+                          <input id="file_name_input" type="file" required accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg" onChange={(e) => { const file = e.target.files?.[0] || null; setUploadFile(file); setUploadFileName(file?.name || ''); }} className="w-full mt-1 px-3 py-1.5 text-xs border border-slate-200 rounded-lg text-slate-700 bg-slate-50/50 file:mr-3 file:rounded-md file:border-0 file:bg-emerald-50 file:px-2 file:py-1 file:text-emerald-700" />
+                        )}
                       </div>
                       <div>
                         <label htmlFor="file_category_select" className="block text-[10px] font-bold text-slate-400 uppercase">Tipo de Documento</label>
@@ -385,19 +439,13 @@ export default function PatientManager(props) {
                           <option value="other">Otro Documento</option>
                         </select>
                       </div>
-                      <div>
-                        <label htmlFor="file_year_select" className="block text-[10px] font-bold text-slate-400 uppercase">Año</label>
-                        <select id="file_year_select" value={uploadYear} onChange={(e) => setUploadYear(Number(e.target.value))} className="w-full mt-1 px-3 py-1.5 text-xs border border-slate-200 rounded-lg text-slate-700 focus:outline-none focus:ring-1 focus:ring-emerald-500 bg-slate-50/50">
-                          <option value={2026}>2026</option>
-                          <option value={2025}>2025</option>
-                          <option value={2024}>2024</option>
-                        </select>
-                      </div>
                     </div>
 
                     <div>
-                      <label htmlFor="file_text_details" className="block text-[10px] font-bold text-slate-400 uppercase">Anotaciones clínicas u observaciones</label>
-                      <textarea id="file_text_details" required rows={3} placeholder="Escribe el contenido correspondiente a esta nota clínica..." value={uploadNote} onChange={(e) => setUploadNote(e.target.value)} className="w-full mt-1 p-2.5 text-xs border border-slate-200 rounded-lg text-slate-700 focus:outline-none focus:ring-1 focus:ring-emerald-500 bg-slate-50/50" />
+                      <label htmlFor="file_text_details" className="block text-[10px] font-bold text-slate-400 uppercase">
+                        {uploadCategory === 'session_note' ? 'Contenido de la sesión' : 'Observaciones (opcional)'}
+                      </label>
+                      <textarea id="file_text_details" required={uploadCategory === 'session_note'} rows={3} placeholder={uploadCategory === 'session_note' ? 'Escribe la evolución, intervenciones y acuerdos de la sesión...' : 'Añade una observación sobre el documento...'} value={uploadNote} onChange={(e) => setUploadNote(e.target.value)} className="w-full mt-1 p-2.5 text-xs border border-slate-200 rounded-lg text-slate-700 focus:outline-none focus:ring-1 focus:ring-emerald-500 bg-slate-50/50" />
                     </div>
 
                     <div className="flex flex-wrap items-center gap-1.5 mt-1.5 pt-1">
@@ -412,7 +460,7 @@ export default function PatientManager(props) {
 
                     <div className="flex justify-end pt-1">
                       <button id="btn_submit_file" type="submit" className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow transition-all cursor-pointer">
-                        <FileUp className="h-4 w-4" /> Registrar Nota
+                        <FileUp className="h-4 w-4" /> {uploadCategory === 'session_note' ? 'Registrar nota' : 'Subir documento'}
                       </button>
                     </div>
                   </form>

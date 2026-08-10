@@ -35,7 +35,7 @@ const AuthProvider = ({ children }) => {
         throw new Error(data.error || "No se pudo validar la sesión");
       }
 
-      setUser(data.user);
+      setUser(data.user || data);
       return true;
     } catch {
       localStorage.removeItem("token");
@@ -78,7 +78,7 @@ const AuthProvider = ({ children }) => {
         }
 
         if (!cancelled) {
-          setUser(data.user);
+          setUser(data.user || data);
         }
       })
       .catch(() => {

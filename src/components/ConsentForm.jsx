@@ -9,11 +9,9 @@ export default function ConsentForm(props) {
   const defaultYear = today.getFullYear();
 
   const [selectedPatientId, setSelectedPatientId] = useState(
-    () => patients[0]?.id || 'manual',
+    patients[0]?.id || 'manual',
   );
-  const [patientName, setPatientName] = useState(
-    () => patients[0]?.name || '',
-  );
+  const [patientName, setPatientName] = useState(patients[0]?.name || '');
   const [consentDate, setConsentDate] = useState(defaultDateStr);
   const [consentYear, setConsentYear] = useState(defaultYear);
   const [signatureType, setSignatureType] = useState('draw');
@@ -25,11 +23,8 @@ export default function ConsentForm(props) {
   const [isDrawing, setIsDrawing] = useState(false);
   const [hasDrawn, setHasDrawn] = useState(false);
   const [signedList, setSignedList] = useState(() => {
-    const stored = localStorage.getItem('psy_signed_consents');
-    if (!stored) return [];
-
     try {
-      return JSON.parse(stored);
+      return JSON.parse(localStorage.getItem('psy_signed_consents')) || [];
     } catch {
       return [];
     }

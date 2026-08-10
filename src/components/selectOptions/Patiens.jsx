@@ -1,14 +1,26 @@
-import SelectOptions from "../dashboard/SelectOptions";
+import PatientManager from "../PatientManager";
+import useClinicalData from "../../context/useClinicalData";
 
 const Patients = () => {
-  return (
-    <div className="max-w-7xl mx-auto px-6 py-6">
-      <SelectOptions />
+  const { patients, files, addPatient, addFile, updateFile, deleteFile } = useClinicalData();
 
-      <div className="mt-6">
-        <h1>Pacientes</h1>
+  return (
+    <section className="space-y-5">
+      <div>
+        <h1 className="text-xl font-bold text-slate-800">Pacientes y expedientes</h1>
+        <p className="text-sm text-slate-500">
+          Crea pacientes, consulta sus fichas y prueba la gestión documental.
+        </p>
       </div>
-    </div>
+      <PatientManager
+        patients={patients}
+        files={files}
+        onAddPatient={addPatient}
+        onAddFile={addFile}
+        onUpdateFile={updateFile}
+        onDeleteFile={deleteFile}
+      />
+    </section>
   );
 };
 
