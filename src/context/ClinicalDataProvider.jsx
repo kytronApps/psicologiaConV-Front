@@ -1,13 +1,8 @@
 import { useEffect, useState } from "react";
 import ClinicalDataContext from "./ClinicalDataContext";
-import {
-  INITIAL_APPOINTMENTS,
-  INITIAL_FILES,
-  INITIAL_PATIENTS,
-} from "../utils";
 import useAuth from "./useAuth";
 
-const STORAGE_KEY = "psicologia_con_v_clinical_demo";
+const STORAGE_KEY = "psicologia_con_v_clinical_v2";
 const DEFAULT_AVAILABILITY = { days: [1, 2, 3, 4, 5], start: "09:00", end: "17:00" };
 
 function getInitialData() {
@@ -18,13 +13,13 @@ function getInitialData() {
       return { ...parsed, availability: parsed.availability || DEFAULT_AVAILABILITY };
     }
   } catch {
-    // Si los datos locales no son válidos, recuperamos la demo inicial.
+    // Si los datos locales no son válidos, comenzamos con una ficha limpia.
   }
 
   return {
-    patients: INITIAL_PATIENTS,
-    files: INITIAL_FILES,
-    appointments: INITIAL_APPOINTMENTS,
+    patients: [],
+    files: {},
+    appointments: [],
     availability: DEFAULT_AVAILABILITY,
   };
 }
