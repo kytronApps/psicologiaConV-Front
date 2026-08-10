@@ -2,13 +2,15 @@ import { useMemo, useState } from 'react';
 import { TYPE_LABELS } from '../utils';
 import {
   CalendarDays, Clock, Plus, Trash2, CheckCircle, AlertCircle, XCircle,
-  Sparkles, Calendar, RefreshCw, Video, Share2
+  Sparkles, Calendar, Video, Share2
 } from 'lucide-react';
 import { getAvailableSlots } from '../utils/bookingSlots';
+import useAuth from '../context/useAuth';
 
 export default function AppointmentScheduler(props) {
   const appointmentList = props.appointments;
   const patientsList = props.patients;
+  const { user } = useAuth();
 
   const [showAddForm, setShowAddForm] = useState(false);
   const [appointPatientId, setAppointPatientId] = useState(patientsList[0]?.id || '');
@@ -18,10 +20,6 @@ export default function AppointmentScheduler(props) {
   const [appointNotes, setAppointNotes] = useState('');
   const [appointFilter, setAppointFilter] = useState('all');
   const [statusMsg, setStatusMsg] = useState('');
-  const [isSyncing, setIsSyncing] = useState(false);
-  const [gCalSyncTime, setGCalSyncTime] = useState('Hoy, hace unos minutos');
-  const [autoUploadToGCal, setAutoUploadToGCal] = useState(true);
-  const [googleStatusMsg, setGoogleStatusMsg] = useState(null);
   const availableTimes = useMemo(
     () => getAvailableSlots({
       date: appointDate,
@@ -32,7 +30,7 @@ export default function AppointmentScheduler(props) {
     [appointDate, appointDuration, appointmentList, props.availability],
   );
 
-  const handleCreateAppointment = (e) => {
+  const handleCreateAppointment = async (e) => {
     e.preventDefault();
     if (!appointPatientId) {
       setStatusMsg('⚠️ Selecciona un paciente registrado en la clínica');
@@ -50,6 +48,7 @@ export default function AppointmentScheduler(props) {
       id: `app-${Date.now()}`,
       patientId: appointPatientId,
       patientName: patientName,
+      patientEmail: patient?.email || '',
       date: appointDate,
       time: appointTime,
       duration: Number(appointDuration) || 50,
@@ -60,29 +59,15 @@ export default function AppointmentScheduler(props) {
       meetingUrl: '',
     };
 
-    props.onAddAppointment(newAppointment);
-    setAppointNotes('');
-    setShowAddForm(false);
-
-    if (autoUploadToGCal) {
-      setStatusMsg('🎉 ¡Cita programada con éxito en PsycheCabinet y sincronizada con Google Calendar!');
-    } else {
-      setStatusMsg('🎉 ¡Cita programada con éxito en el calendario local!');
+    try {
+      await props.onAddAppointment(newAppointment);
+      setAppointNotes('');
+      setShowAddForm(false);
+      setStatusMsg('🎉 Cita creada en Google Calendar con su enlace de Meet.');
+    } catch (error) {
+      setStatusMsg(`⚠️ ${error.message || 'No se pudo sincronizar la cita con Google Calendar.'}`);
     }
     setTimeout(() => setStatusMsg(''), 6500);
-  };
-
-  const handleSyncGoogleCalendar = () => {
-    setIsSyncing(true);
-    setGoogleStatusMsg(null);
-    setTimeout(() => {
-      setIsSyncing(false);
-      const now = new Date();
-      const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-      setGCalSyncTime(`Hoy a las ${timeStr}`);
-      setGoogleStatusMsg('¡Sincronización finalizada! Se enviaron las próximas consultas a Google Calendar.');
-      setTimeout(() => setGoogleStatusMsg(null), 5000);
-    }, 1200);
   };
 
   const shareManagementLink = async (appointment) => {
@@ -163,45 +148,30 @@ export default function AppointmentScheduler(props) {
         <div id="google_calendar_card" className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm space-y-3.5">
           <div className="flex items-center justify-between border-b border-slate-50 pb-2.5">
             <div className="flex items-center gap-2">
-              <span className="h-2.5 w-2.5 rounded-full bg-emerald-500 animate-pulse" />
+              <span className={`h-2.5 w-2.5 rounded-full ${user?.calendarConnected ? 'bg-emerald-500 animate-pulse' : 'bg-amber-400'}`} />
               <div>
                 <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">Google Calendar Sync</h3>
-                <p className="text-[10px] text-emerald-600 font-bold">🟢 Integrado y Conectado</p>
+                <p className={`text-[10px] font-bold ${user?.calendarConnected ? 'text-emerald-600' : 'text-amber-600'}`}>
+                  {user?.calendarConnected ? '🟢 Integrado y conectado' : '🟠 Requiere conexión'}
+                </p>
               </div>
             </div>
           </div>
 
-          <div className="space-y-2 pt-1 border-t border-slate-55">
-            <label className="flex items-center gap-2 text-[11px] font-medium text-slate-600 cursor-pointer select-none">
-              <input
-                type="checkbox"
-                checked={autoUploadToGCal}
-                onChange={() => setAutoUploadToGCal(!autoUploadToGCal)}
-                className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 h-3.5 w-3.5"
-              />
-              <span>Sincronizar citas automáticamente</span>
-            </label>
-          </div>
-
-          {googleStatusMsg && (
-            <div className="p-2.5 rounded-xl bg-indigo-50 border border-indigo-100 text-[10px] font-medium text-indigo-800 leading-normal">
-              {googleStatusMsg}
-            </div>
+          <p className="text-[11px] text-slate-600 leading-relaxed">
+            {user?.calendarConnected
+              ? 'Las citas nuevas, modificadas o canceladas se actualizan automáticamente en Google Calendar.'
+              : 'Vuelve a identificarte con Google una vez para autorizar Calendar.'}
+          </p>
+          {!user?.calendarConnected && (
+            <button
+              type="button"
+              onClick={() => { window.location.href = `${import.meta.env.VITE_API_URL}/api/auth/google`; }}
+              className="w-full py-2 px-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-xs transition-colors cursor-pointer"
+            >
+              Conectar Google Calendar
+            </button>
           )}
-
-          <div className="flex items-center justify-between text-[10px] text-slate-400 pt-1">
-            <span>Última Sincronización:</span>
-            <span className="font-bold text-slate-500">{gCalSyncTime}</span>
-          </div>
-
-          <button
-            onClick={handleSyncGoogleCalendar}
-            disabled={isSyncing}
-            className="w-full flex items-center justify-center gap-1.5 py-2 px-3 bg-slate-50 hover:bg-slate-100 text-slate-700 rounded-xl font-bold text-xs border border-slate-200 transition-colors disabled:opacity-50 cursor-pointer"
-          >
-            <RefreshCw className={`h-3 w-3 text-slate-500 ${isSyncing ? 'animate-spin' : ''}`} />
-            {isSyncing ? 'Sincronizando...' : 'Sincronizar Manualmente'}
-          </button>
         </div>
 
         <div className="bg-slate-100 p-4 rounded-3xl border border-slate-200/40 text-[11px] text-slate-500 leading-relaxed">
